@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bookmarks</title>
+<style>
+  :root {
+    --bg: #faf9f6; --panel: #ffffff; --ink: #1c1b19; --muted: #6f6b63;
+    --line: #e4e1da; --accent: #b4441f; --accent-ink: #ffffff;
+    --chip: #f0ede6; --chip-on: #1c1b19; --chip-on-ink: #faf9f6;
+    --ok: #2f6b3c; --bad: #a3271f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #151413; --panel: #1e1d1b; --ink: #ecebe6; --muted: #9a968c;
+      --line: #33312d; --accent: #e8794f; --accent-ink: #151413;
+      --chip: #2a2825; --chip-on: #ecebe6; --chip-on-ink: #151413;
+      --ok: #7fc48d; --bad: #f08a80;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.45 ui-sans-serif, -apple-system, "Segoe UI", system-ui, sans-serif;
+  }
+  main { max-width: 760px; margin: 0 auto; padding: 20px 16px 80px; }
+  header { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
+  h1 { font-size: 20px; margin: 0; letter-spacing: -0.01em; }
+  #count { color: var(--muted); font-size: 13px; flex: 1; }
+  button, input { font: inherit; color: inherit; }
+  button {
+    border: 1px solid var(--line); background: var(--panel); border-radius: 8px;
+    padding: 6px 12px; cursor: pointer;
+  }
+  button:hover { border-color: var(--muted); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+  button.quiet { border-color: transparent; background: none; color: var(--muted); padding: 4px 8px; }
+  button.quiet:hover { color: var(--ink); }
+  button.danger { color: var(--bad); }
+  button:disabled { opacity: .5; cursor: default; }
+  input[type=text], input[type=search], input[type=url], input[type=password] {
+    width: 100%; padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px;
+    background: var(--panel); outline: none;
+  }
+  input:focus { border-color: var(--accent); }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+  .panel h2 { font-size: 15px; margin: 0 0 4px; }
+  .panel p { margin: 6px 0; color: var(--muted); font-size: 13px; }
+  .row { display: flex; gap: 8px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    border: 0; background: var(--chip); border-radius: 999px; padding: 2px 10px;
+    font-size: 12.5px; cursor: pointer; color: var(--ink); white-space: nowrap;
+  }
+  .chip small { color: var(--muted); margin-left: 4px; }
+  .chip.on { background: var(--chip-on); color: var(--chip-on-ink); }
+  .chip.on small { color: inherit; opacity: .7; }
+  #tagbar { margin: 12px 0 6px; max-height: 84px; overflow: hidden; }
+  #tagbar.open { max-height: none; }
+  #list { list-style: none; margin: 10px 0 0; padding: 0; }
+  #list li { padding: 11px 0; border-top: 1px solid var(--line); }
+  .title { font-weight: 600; color: var(--ink); text-decoration: none; overflow-wrap: anywhere; }
+  .title:hover { color: var(--accent); }
+  .meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 3px; }
+  .host { color: var(--muted); font-size: 12.5px; }
+  .edit { margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .edit input { flex: 1; min-width: 180px; }
+  #status { font-size: 13px; min-height: 1.3em; margin: 6px 0; }
+  #status.ok { color: var(--ok); } #status.bad { color: var(--bad); }
+  .empty { color: var(--muted); padding: 24px 0; text-align: center; }
+  .plus {
+    display: inline-block; background: var(--accent); color: var(--accent-ink); font-weight: 700;
+    padding: 4px 14px; border-radius: 8px; text-decoration: none; cursor: grab;
+  }
+  code { background: var(--chip); padding: 1px 5px; border-radius: 4px; font-size: 12.5px; overflow-wrap: anywhere; }
+  ol { padding-left: 20px; margin: 6px 0; color: var(--muted); font-size: 13px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Bookmarks</h1>
+    <span id="count"></span>
+    <button class="quiet" id="setupBtn" type="button">Setup</button>
+  </header>
+
+  <!-- Add / update a bookmark (shown when the page is opened with ?url=...) -->
+  <section class="panel" id="addPanel" hidden>
+    <h2 id="addHeading">Add bookmark</h2>
+    <form id="addForm">
+      <label for="addUrl">URL</label>
+      <input id="addUrl" type="url" required>
+      <label for="addTitle">Title</label>
+      <input id="addTitle" type="text">
+      <label for="addTags">Tags (separate with commas or spaces)</label>
+      <input id="addTags" type="text" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <div class="chips" id="addSuggest" style="margin-top:8px"></div>
+      <div class="row">
+        <button class="primary" id="addSave" type="submit">Save</button>
+        <button class="quiet" id="addCancel" type="button">Cancel</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- Setup: token, + button, iPhone shortcut -->
+  <section class="panel" id="setupPanel" hidden>
+    <h2>GitHub token</h2>
+    <p>Searching works without a token. Saving needs a fine-grained personal access token limited to
+      <code id="repoName"></code> with <b>Contents: Read and write</b>. It is stored only in this browser.</p>
+    <input id="token" type="password" placeholder="github_pat_…" autocomplete="off">
+    <div class="row">
+      <button class="primary" id="tokenSave" type="button">Save token</button>
+      <button class="quiet" id="tokenClear" type="button">Remove token</button>
+      <a id="tokenLink" target="_blank" rel="noopener">Create a token</a>
+    </div>
+
+    <h2 style="margin-top:20px">“+” button for desktop Safari and Chrome</h2>
+    <p id="dragHelp">Drag this to your bookmarks bar, then click it on any page: <a class="plus" id="bookmarklet">+</a></p>
+    <p id="fileWarn" hidden>Open this page from its GitHub Pages address first. The “+” button has to point at a web address, not a local file.</p>
+
+    <h2 style="margin-top:20px">“+” on iPhone and iPad</h2>
+    <ol>
+      <li>In the Shortcuts app, create a shortcut named <b>+ Bookmark</b> and turn on <b>Show in Share Sheet</b> (accept URLs and Safari web pages).</li>
+      <li>Add the action <b>URL Encode</b> with <i>Shortcut Input</i>.</li>
+      <li>Add the action <b>Open URLs</b> with: <code id="shortcutUrl"></code> followed by the <i>URL Encoded Text</i> variable.</li>
+    </ol>
+    <p>Then share any page from Safari or Chrome and pick <b>+ Bookmark</b>.</p>
+  </section>
+
+  <div id="browse">
+    <input id="q" type="search" placeholder="Search titles, links and tags   ( / )" autocomplete="off">
+    <div class="chips" id="tagbar"></div>
+    <button class="quiet" id="tagMore" type="button" hidden>Show all tags</button>
+    <div id="status" role="status"></div>
+    <ul id="list"></ul>
+  </div>
+</main>
+
+<script>
+"use strict";
+// ---- Where the bookmarks live ----
+const OWNER = "mobiledge", REPO = "bookmarks", BRANCH = "main", FILE = "bookmarks.json";
+const API = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE}`;
+const TOKEN_KEY = "bookmarks.github_token";
+
+const $ = (id) => document.getElementById(id);
+const el = (tag, props = {}, ...kids) => {
+  const n = Object.assign(document.createElement(tag), props);
+  n.append(...kids);
+  return n;
+};
+
+let items = [];           // [{url, title, tags, added?}]
+let activeTags = new Set();
+let editing = null;       // url of the bookmark whose tags are being edited
+let memToken = "";
+
+// ---- Token storage (falls back to memory if storage is unavailable) ----
+function getToken() {
+  try { return localStorage.getItem(TOKEN_KEY) || memToken; } catch { return memToken; }
+}
+function setToken(t) {
+  memToken = t;
+  try { t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY); } catch {}
+}
+
+// ---- GitHub ----
+function headers() {
+  const h = { "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" };
+  const t = getToken();
+  if (t) h["Authorization"] = "Bearer " + t;
+  return h;
+}
+function b64decode(b64) {
+  const bin = atob(b64.replace(/\s/g, ""));
+  return new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
+}
+function b64encode(text) {
+  const bytes = new TextEncoder().encode(text);
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+function serialize(list) {
+  // One bookmark per line keeps git diffs and hand edits tidy.
+  return "[\n" + list.map((b) => JSON.stringify(b)).join(",\n") + "\n]\n";
+}
+async function fetchFile() {
+  const res = await fetch(`${API}?ref=${BRANCH}&t=${Date.now()}`, { headers: headers(), cache: "no-store" });
+  if (res.status === 404) return { list: [], sha: null };
+  if (res.status === 401) throw new Error("GitHub rejected the token. Check it in Setup.");
+  if (res.status === 403) throw new Error("GitHub refused the request (rate limit or token permissions). Adding a token in Setup raises the limit.");
+  if (!res.ok) throw new Error("Could not load bookmarks (GitHub said " + res.status + ").");
+  const body = await res.json();
+  const list = JSON.parse(b64decode(body.content));
+  if (!Array.isArray(list)) throw new Error(FILE + " is not a list.");
+  return { list, sha: body.sha };
+}
+// Re-reads the file, applies `change` to the fresh copy, and writes it back.
+async function commit(message, change) {
+  if (!getToken()) { openSetup(); throw new Error("Add a GitHub token in Setup to save changes."); }
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const { list, sha } = await fetchFile();
+    change(list);
+    const body = { message, content: b64encode(serialize(list)), branch: BRANCH };
+    if (sha) body.sha = sha;
+    const res = await fetch(API, { method: "PUT", headers: headers(), body: JSON.stringify(body) });
+    if (res.ok) { items = list; return; }
+    if (res.status === 409 || res.status === 422) continue; // file changed underneath us; retry on a fresh copy
+    if (res.status === 401) throw new Error("GitHub rejected the token. Check it in Setup.");
+    if (res.status === 403 || res.status === 404) throw new Error("The token cannot write to this repo. It needs Contents: Read and write.");
+    throw new Error("Could not save (GitHub said " + res.status + ").");
+  }
+  throw new Error("Could not save: the file kept changing. Try again.");
+}
+
+// ---- Helpers ----
+function parseTags(text) {
+  const out = [];
+  for (const raw of text.toLowerCase().split(/[,\s]+/)) {
+    const t = raw.trim();
+    if (t && !out.includes(t)) out.push(t);
+  }
+  return out;
+}
+function tagCounts() {
+  const m = new Map();
+  for (const b of items) for (const t of b.tags || []) m.set(t, (m.get(t) || 0) + 1);
+  return [...m.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+}
+function hostOf(url) { try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return ""; } }
+function safeHref(url) { return /^https?:\/\//i.test(url) ? url : "#"; }
+function status(msg, kind = "") { const s = $("status"); s.textContent = msg; s.className = kind; }
+
+// ---- Browse: search, filter, edit ----
+function visible() {
+  const words = $("q").value.toLowerCase().split(/\s+/).filter(Boolean);
+  const out = items.filter((b) => {
+    const tags = b.tags || [];
+    for (const t of activeTags) if (!tags.includes(t)) return false;
+    const hay = ((b.title || "") + " " + b.url + " " + tags.join(" ")).toLowerCase();
+    return words.every((w) => hay.includes(w));
+  });
+  // Newest first; bookmarks without a date keep their file order after the dated ones.
+  return out.map((b, i) => [b, i]).sort((x, y) =>
+    (y[0].added || "").localeCompare(x[0].added || "") || x[1] - y[1]).map((p) => p[0]);
+}
+function renderTags() {
+  const bar = $("tagbar");
+  bar.replaceChildren(...tagCounts().map(([t, n]) => {
+    const c = el("button", { className: "chip" + (activeTags.has(t) ? " on" : ""), type: "button" }, t, el("small", {}, String(n)));
+    c.addEventListener("click", () => { activeTags.has(t) ? activeTags.delete(t) : activeTags.add(t); render(); });
+    return c;
+  }));
+  $("tagMore").hidden = bar.classList.contains("open") || bar.scrollHeight <= bar.clientHeight + 2;
+}
+function renderList() {
+  const shown = visible();
+  $("count").textContent = shown.length === items.length ? `${items.length} saved` : `${shown.length} of ${items.length}`;
+  const list = $("list");
+  if (!shown.length) {
+    list.replaceChildren(el("li", { className: "empty" }, items.length ? "No bookmarks match." : "No bookmarks yet."));
+    return;
+  }
+  list.replaceChildren(...shown.map((b) => {
+    const li = el("li");
+    li.append(el("a", { className: "title", href: safeHref(b.url), target: "_blank", rel: "noopener" }, b.title || b.url));
+    const meta = el("div", { className: "meta" }, el("span", { className: "host" }, hostOf(b.url)));
+    for (const t of b.tags || []) {
+      const c = el("button", { className: "chip" + (activeTags.has(t) ? " on" : ""), type: "button" }, t);
+      c.addEventListener("click", () => { activeTags.has(t) ? activeTags.delete(t) : activeTags.add(t); render(); });
+      meta.append(c);
+    }
+    const editBtn = el("button", { className: "quiet", type: "button" }, (b.tags || []).length ? "Edit tags" : "Add tags");
+    editBtn.addEventListener("click", () => { editing = editing === b.url ? null : b.url; renderList(); });
+    meta.append(editBtn);
+    li.append(meta);
+    if (editing === b.url) li.append(editRow(b));
+    return li;
+  }));
+  const input = list.querySelector(".edit input");
+  if (input) { input.focus(); input.setSelectionRange(input.value.length, input.value.length); }
+}
+function editRow(b) {
+  const input = el("input", { type: "text", value: (b.tags || []).join(", "), autocomplete: "off", autocapitalize: "off", spellcheck: false });
+  input.setAttribute("aria-label", "Tags");
+  const save = el("button", { className: "primary", type: "button" }, "Save");
+  const cancel = el("button", { className: "quiet", type: "button" }, "Cancel");
+  const del = el("button", { className: "quiet danger", type: "button" }, "Delete");
+  const row = el("div", { className: "edit" }, input, save, cancel, del);
+  const busy = (on) => { for (const n of [input, save, cancel, del]) n.disabled = on; };
+
+  const doSave = async () => {
+    const tags = parseTags(input.value);
+    busy(true); status("Saving…");
+    try {
+      await commit(`Tag: ${b.title || b.url}`, (list) => {
+        const target = list.find((x) => x.url === b.url);
+        if (!target) throw new Error("That bookmark no longer exists in the file.");
+        target.tags = tags;
+      });
+      editing = null; status("Tags saved.", "ok"); render();
+    } catch (e) { busy(false); status(e.message, "bad"); }
+  };
+  save.addEventListener("click", doSave);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") doSave();
+    if (e.key === "Escape") { editing = null; renderList(); }
+  });
+  cancel.addEventListener("click", () => { editing = null; renderList(); });
+  del.addEventListener("click", async () => {
+    if (del.dataset.armed !== "1") { del.dataset.armed = "1"; del.textContent = "Click again to delete"; return; }
+    busy(true); status("Deleting…");
+    try {
+      await commit(`Remove: ${b.title || b.url}`, (list) => {
+        const i = list.findIndex((x) => x.url === b.url);
+        if (i >= 0) list.splice(i, 1);
+      });
+      editing = null; status("Bookmark deleted.", "ok"); render();
+    } catch (e) { busy(false); status(e.message, "bad"); }
+  });
+  return row;
+}
+function render() { renderTags(); renderList(); if (!$("addPanel").hidden) renderSuggest(); }
+
+// ---- Add: opened by the + button with ?url=...&title=... ----
+function renderSuggest() {
+  const input = $("addTags");
+  const chosen = parseTags(input.value);
+  const typing = /[,\s]$/.test(input.value) ? "" : (chosen[chosen.length - 1] || "");
+  const pool = tagCounts().map(([t]) => t).filter((t) => !chosen.includes(t) || t === typing);
+  const matches = (typing ? pool.filter((t) => t.includes(typing) && t !== typing) : pool).slice(0, 24);
+  $("addSuggest").replaceChildren(...matches.map((t) => {
+    const c = el("button", { className: "chip", type: "button" }, t);
+    c.addEventListener("click", () => {
+      const keep = typing ? chosen.slice(0, -1) : chosen;
+      input.value = [...keep, t].join(", ") + ", ";
+      input.focus(); renderSuggest();
+    });
+    return c;
+  }));
+}
+function startAdd(url, title) {
+  $("addPanel").hidden = false;
+  $("addUrl").value = url;
+  const existing = items.find((b) => b.url === url);
+  $("addTitle").value = existing ? (existing.title || "") : (title || hostOf(url));
+  if (existing) {
+    $("addHeading").textContent = "Already saved: update tags";
+    $("addTags").value = (existing.tags || []).join(", ");
+  }
+  renderSuggest();
+  $("addTags").focus();
+}
+function closeAdd() {
+  $("addPanel").hidden = true;
+  history.replaceState(null, "", location.pathname);
+}
+$("addTags").addEventListener("input", renderSuggest);
+$("addCancel").addEventListener("click", () => { closeAdd(); window.close(); });
+$("addForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const url = $("addUrl").value.trim();
+  const title = $("addTitle").value.trim();
+  const tags = parseTags($("addTags").value);
+  if (!/^https?:\/\//i.test(url)) { status("Only http and https links can be saved.", "bad"); return; }
+  $("addSave").disabled = true; status("Saving…");
+  try {
+    await commit(`Add: ${title || url}`, (list) => {
+      const target = list.find((x) => x.url === url);
+      if (target) { target.title = title || target.title; target.tags = tags; }
+      else list.push({ url, title, tags, added: new Date().toISOString() });
+    });
+    closeAdd(); status("Saved.", "ok"); render();
+    setTimeout(() => window.close(), 700); // closes the popup; does nothing in a normal tab
+  } catch (err) { status(err.message, "bad"); }
+  $("addSave").disabled = false;
+});
+
+// ---- Setup panel ----
+function openSetup() { $("setupPanel").hidden = false; $("token").focus(); }
+function initSetup() {
+  $("repoName").textContent = `${OWNER}/${REPO}`;
+  $("tokenLink").href = "https://github.com/settings/personal-access-tokens/new";
+  $("token").value = getToken();
+  const hosted = /^https?:$/.test(location.protocol);
+  const base = hosted ? location.origin + location.pathname : `https://${OWNER}.github.io/${REPO}/`;
+  $("shortcutUrl").textContent = base + "?url=";
+  $("dragHelp").hidden = !hosted; $("fileWarn").hidden = hosted;
+  const js = `(function(){var u=${JSON.stringify(base)}+'?url='+encodeURIComponent(location.href)+'&title='+encodeURIComponent(document.title);` +
+    `var w=window.open(u,'_blank','width=520,height=680');if(!w)location.href=u;})();`;
+  $("bookmarklet").href = "javascript:" + encodeURIComponent(js);
+  $("bookmarklet").addEventListener("click", (e) => e.preventDefault());
+}
+$("setupBtn").addEventListener("click", () => { $("setupPanel").hidden = !$("setupPanel").hidden; });
+$("tokenSave").addEventListener("click", () => { setToken($("token").value.trim()); status("Token saved in this browser.", "ok"); $("setupPanel").hidden = true; });
+$("tokenClear").addEventListener("click", () => { setToken(""); $("token").value = ""; status("Token removed.", "ok"); });
+
+// ---- Search box ----
+$("q").addEventListener("input", renderList);
+$("tagMore").addEventListener("click", () => { $("tagbar").classList.add("open"); $("tagMore").hidden = true; });
+document.addEventListener("keydown", (e) => {
+  if (e.key === "/" && !/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) { e.preventDefault(); $("q").focus(); }
+});
+
+// ---- Start ----
+(async function init() {
+  initSetup();
+  const params = new URLSearchParams(location.search);
+  const addUrl = params.get("url");
+  status("Loading…");
+  try {
+    items = (await fetchFile()).list;
+    status("");
+  } catch (e) { status(e.message, "bad"); }
+  render();
+  if (addUrl) { startAdd(addUrl, params.get("title") || ""); if (!getToken()) openSetup(); }
+})();
+</script>
+</body>
+</html>
