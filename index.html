@@ -131,11 +131,12 @@
     <p>Then share any page from Safari or Chrome and pick <b>+ Bookmark</b>.</p>
   </section>
 
+  <div id="status" role="status"></div>
+
   <div id="browse">
     <input id="q" type="search" placeholder="Search titles, links and tags   ( / )" autocomplete="off">
     <div class="chips" id="tagbar"></div>
     <button class="quiet" id="tagMore" type="button" hidden>Show all tags</button>
-    <div id="status" role="status"></div>
     <ul id="list"></ul>
   </div>
 </main>
@@ -146,6 +147,7 @@
 const OWNER = "mobiledge", REPO = "bookmarks", BRANCH = "main", FILE = "bookmarks.json";
 const API = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE}`;
 const TOKEN_KEY = "bookmarks.github_token";
+const POPUP_W = 520, POPUP_H = 640; // size of the add window opened by the + button
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, props = {}, ...kids) => {
@@ -346,6 +348,14 @@ function renderSuggest() {
 }
 function startAdd(url, title) {
   $("addPanel").hidden = false;
+  $("browse").hidden = true; // keep the add window compact
+  // Safari can ignore the size the + button asks for, so shrink a freshly opened window here.
+  if (history.length <= 1 && window.outerWidth > 620) {
+    try {
+      window.resizeTo(POPUP_W, POPUP_H);
+      window.moveTo(Math.max(0, (screen.availWidth - POPUP_W) / 2), 80);
+    } catch {}
+  }
   $("addUrl").value = url;
   const existing = items.find((b) => b.url === url);
   $("addTitle").value = existing ? (existing.title || "") : (title || hostOf(url));
@@ -358,6 +368,7 @@ function startAdd(url, title) {
 }
 function closeAdd() {
   $("addPanel").hidden = true;
+  $("browse").hidden = false;
   history.replaceState(null, "", location.pathname);
 }
 $("addTags").addEventListener("input", renderSuggest);
@@ -392,7 +403,7 @@ function initSetup() {
   $("shortcutUrl").textContent = base + "?url=";
   $("dragHelp").hidden = !hosted; $("fileWarn").hidden = hosted;
   const js = `(function(){var u=${JSON.stringify(base)}+'?url='+encodeURIComponent(location.href)+'&title='+encodeURIComponent(document.title);` +
-    `var w=window.open(u,'_blank','width=520,height=680');if(!w)location.href=u;})();`;
+    `var w=window.open(u,'_blank','popup=yes,width=${POPUP_W},height=${POPUP_H},left='+Math.max(0,Math.round((screen.availWidth-${POPUP_W})/2))+',top=80');if(!w)location.href=u;})();`;
   $("bookmarklet").href = "javascript:" + encodeURIComponent(js);
   $("bookmarklet").addEventListener("click", (e) => e.preventDefault());
 }
